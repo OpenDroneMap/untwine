@@ -467,7 +467,7 @@ void Processor::writeEptFile(const std::string& filename, pdal::PointViewPtr vie
     pdal::Options wopts;
     wopts.add("extra_dims", "all");
     wopts.add("software_id", "Entwine 1.0");
-    wopts.add("compression", "lazperf");
+    wopts.add("compression", "laszip");
     wopts.add("filename", filename);
     wopts.add("offset_x", m_b.offset[0]);
     wopts.add("offset_y", m_b.offset[1]);
