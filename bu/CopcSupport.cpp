@@ -32,11 +32,15 @@ namespace bu
 {
 
 CopcSupport::CopcSupport(const BaseInfo& b) : m_b(b),
-    m_lazVlr(b.pointFormatId, extraByteSize(), lazperf::VariableChunkSize),
-    m_ebVlr(),
-    m_wktVlr(b.srs.getWKT1())
+    m_lazVlr(b.pointFormatId, extraByteSize(), lazperf::VariableChunkSize)
 {
-    m_f.open(b.opts.outputName, std::ios::out | std::ios::binary);
+
+    if (b.opts.a_srs.size())
+        m_wktVlr = pdal::SpatialReference(b.opts.a_srs).getWKT();
+    else
+        m_wktVlr = b.srs.getWKT();
+
+    m_f.open(toNative(b.opts.outputName), std::ios::out | std::ios::binary);
 
     //ABELL
     m_header.file_source_id = 0;

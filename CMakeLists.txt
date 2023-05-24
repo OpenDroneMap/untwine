@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(Untwine VERSION 1.0 LANGUAGES CXX)
+project(Untwine VERSION 1.0.1 LANGUAGES CXX)
 include(FeatureSummary)
 include(${PROJECT_SOURCE_DIR}/cmake/compiler_options.cmake)
 
@@ -21,6 +21,12 @@ file(GLOB SRCS
     lazperf/*.cpp
     lazperf/detail/*.cpp
 )
+
+
+if(MSVC)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} \
+        /SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup")
+endif()
 
 add_executable(untwine ${SRCS})
 

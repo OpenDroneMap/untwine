@@ -19,6 +19,8 @@
 #include "../untwine/Common.hpp"
 #include "../untwine/Las.hpp"
 
+#include <cmath>
+#include <filesystem>
 #include <unordered_set>
 
 #include <pdal/pdal_features.hpp>
@@ -29,6 +31,76 @@
 #include <pdal/util/Bounds.hpp>
 #include <pdal/util/FileUtils.hpp>
 #include <pdal/util/ProgramArgs.hpp>
+
+
+namespace
+{
+
+// PDAL's directoryList had a bug, so we've imported a working
+// version here so that we can still use older PDAL releases.
+
+#ifndef __APPLE_CC__
+std::vector<std::string> directoryList(const std::string& dir)
+{
+    namespace fs = std::filesystem;
+
+    std::vector<std::string> files;
+
+    try
+    {
+        fs::directory_iterator it(untwine::toNative(dir));
+        fs::directory_iterator end;
+        while (it != end)
+        {
+            files.push_back(untwine::fromNative(it->path()));
+            it++;
+        }
+    }
+    catch (fs::filesystem_error&)
+    {
+        files.clear();
+    }
+    return files;
+}
+#else
+
+#include <dirent.h>
+
+// Provide simple opendir/readdir solution for OSX because directory_iterator is
+// not available until OSX 10.15
+std::vector<std::string> directoryList(const std::string& dir)
+{
+
+    DIR *dpdf;
+    struct dirent *epdf;
+
+    std::vector<std::string> files;
+    dpdf = opendir(dir.c_str());
+    if (dpdf != NULL){
+       while ((epdf = readdir(dpdf))){
+            std::string name = untwine::fromNative(epdf->d_name);
+            // Skip paths
+            if (pdal::Utils::iequals(name, ".") ||
+                pdal::Utils::iequals(name, ".."))
+            {
+                continue;
+            }
+            else
+            {
+                // we expect the path + name
+                std::string p = dir + "/" + untwine::fromNative(epdf->d_name);
+                files.push_back(p);
+           }
+       }
+    }
+    closedir(dpdf);
+
+    return files;
+
+}
+#endif
+
+} // unnamed namespace
 
 namespace untwine
 {
@@ -232,19 +304,16 @@ void Epf::fillMetadata(const pdal::PointLayoutPtr layout)
     m_b.scale[1] = calcScale(m_b.scale[1], m_b.trueBounds.miny, m_b.trueBounds.maxy);
     m_b.scale[2] = calcScale(m_b.scale[2], m_b.trueBounds.minz, m_b.trueBounds.maxz);
 
-    // Find an offset such that (offset - min) / scale is close to an integer. This helps
-    // to eliminate warning messages in lasinfo that complain because of being unable
-    // to write nominal double values precisely using a 32-bit integer.
-    // The hope is also that raw input values are written as the same raw values
-    // on output. This may not be possible if the input files have different scaling or
-    // incompatible offsets.
+    // The hope is that raw input values are written as the same raw values
+    // on output. This may not be possible if the input files have different
+    // scaling or incompatible offsets.
     auto calcOffset = [](double minval, double maxval, double scale)
     {
         double interval = maxval - minval;
         double spacings = interval / scale;  // Number of quantized values in our range.
         double halfspacings = spacings / 2;  // Half of that number.
         double offset = (int32_t)halfspacings * scale; // Round to an int value and scale down.
-        return minval + offset;              // Add the base (min) value.
+        return std::round(minval + offset);  // Add the base (min) value and round to an integer.
     };
 
     m_b.offset[0] = calcOffset(m_b.trueBounds.minx, m_b.trueBounds.maxx, m_b.scale[0]);
@@ -278,7 +347,7 @@ PointCount Epf::createFileInfo(const StringList& input, StringList dimNames,
     {
         if (FileUtils::isDirectory(filename))
         {
-            std::vector<std::string> dirfiles = FileUtils::directoryList(filename);
+            std::vector<std::string> dirfiles = directoryList(filename);
             filenames.insert(filenames.end(), dirfiles.begin(), dirfiles.end());
         }
         else
